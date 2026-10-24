@@ -1,0 +1,52 @@
+import cv2
+import easyocr
+reader = easyocr.Reader(['en'], gpu=False)
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    print("Error: Could not open camera.")
+    exit()
+print("License Plate Recognition Started")
+print("Press 'q' to exit.")
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Failed to capture image.")
+        break
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 100, 200)
+    contours, _ = cv2.findContours(
+        edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+    )
+    contours = sorted(
+        contours, key=cv2.contourArea, reverse=True
+    )[:30]
+    plate_found = False
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        aspect_ratio = w / float(h)
+        if 2.0 < aspect_ratio < 6.0 and w > 80 and h > 15:
+            plate = gray[y:y+h, x:x+w]
+            results = reader.readtext(plate)
+            for result in results:
+                text = result[1].strip()
+                if text:
+                    cv2.rectangle(
+                        frame, (x, y), (x+w, y+h),
+                        (0, 255, 0), 2
+                    )
+                    cv2.putText(
+                        frame, text, (x, y-10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (0, 255, 0), 2
+                    )
+
+                    print("License Plate:", text)
+                    plate_found = True
+                    break
+        if plate_found:
+            break
+    cv2.imshow("License Plate Recognition", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()
